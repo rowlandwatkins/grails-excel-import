@@ -33,5 +33,10 @@ grails.project.dependency.resolution = {
     //compile group:'org.apache.poi', name:'poi-scratchpad', version:'3.7' //ppt, word, visio, outlook support
 
   }
+  
+  plugins {
+	  compile ":joda-time:1.4"
+	  compile ":release:$grailsVersion"
+  }
 }
 

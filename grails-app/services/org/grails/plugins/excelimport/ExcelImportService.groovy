@@ -1,16 +1,16 @@
 package org.grails.plugins.excelimport
 
 import static org.grails.plugins.excelimport.ExpectedPropertyType.*
-import org.joda.time.LocalDate
 
-import org.apache.poi.ss.util.CellReference
 import org.apache.poi.ss.usermodel.Cell
-import org.apache.poi.ss.usermodel.Sheet
-import org.apache.poi.ss.usermodel.Row
 import org.apache.poi.ss.usermodel.DateUtil
 import org.apache.poi.ss.usermodel.FormulaEvaluator
+import org.apache.poi.ss.usermodel.Row
+import org.apache.poi.ss.usermodel.Sheet
 import org.apache.poi.ss.usermodel.Workbook
+import org.apache.poi.ss.util.CellReference
 import org.codehaus.groovy.grails.commons.ApplicationHolder
+import org.joda.time.LocalDate
 
 
 /**
@@ -123,22 +123,31 @@ public class ExcelImportService {
 	 */
 	def convertColumnMapManyRows(Sheet currentSheet, Map config, int firstRow, ImportCellCollector pcc = null, FormulaEvaluator evaluator = null, propertyConfigurationMap = null, int lastRow = -1) {
 		if (currentSheet == null) return []
-		boolean blankRowBreak = false
-		int blankRowCount = 0
+		int maxConsecutiveBlankRows = (config.maxConsecutiveBlankRowsBeforeReturn ?: -1)
+		boolean shouldCountBlankRows = (maxConsecutiveBlankRows > -1)
+		boolean maxConsecutiveBlankRowLimitReached = false
+		int consecutiveBlankRowCount = 0
 		def returnList = []
-		for (int rowIndex = firstRow; (rowIndex < lastRow || ((lastRow == -1)) && !blankRowBreak); rowIndex++) {
+		for (int rowIndex = firstRow; (rowIndex < lastRow || ((lastRow == -1)) && !maxConsecutiveBlankRowLimitReached); rowIndex++) {
 			//println "ColumnMap $columnMap"
 			Map returnParams = convertColumnMapOneRow(currentSheet, config, rowIndex, pcc, evaluator, propertyConfigurationMap)
 			//println "Row Columns - returning $returnParams"
 			log.debug "Index $rowIndex Result map values $returnParams"
 			//println "Index $rowIndex Result map values $returnParams"
-			if (!returnParams) {
-				blankRowCount += 1
-			} else {
-				blankRowCount = 0
+			
+			if(returnParams){
 				returnList << returnParams
 			}
-			blankRowBreak = (blankRowCount > 10)
+			
+			if(shouldCountBlankRows){
+				if(returnParams){
+					consecutiveBlankRowCount = 0
+				} else {
+					consecutiveBlankRowCount++
+					maxConsecutiveBlankRowLimitReached = (consecutiveBlankRowCount > maxConsecutiveBlankRows)
+				}
+			}
+			
 		}
 		returnList
 	}
@@ -385,7 +394,8 @@ public class ExcelImportService {
 					//println "Expected type - Date for String value ${cell.stringCellValue}"
 					//println "Expected type - Date for String value ${stringDate.class}"
 					try {
-						def df = new java.text.SimpleDateFormat('MM/dd/yy')
+						def dateFormat = propertyConfiguration.dateFormat ?: 'MM/dd/yy'
+						def df = new java.text.SimpleDateFormat(dateFormat)
 						df.setLenient(false) //would fail on Nonexistent dates (ie. February 30th, April 31)
 						def javaDate = df.parse(stringDate)
 
